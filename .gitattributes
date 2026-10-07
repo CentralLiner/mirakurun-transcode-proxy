@@ -1,0 +1,5 @@
+* text=auto eol=lf
+# Preserve formatting in upstream license notices.
+third_party/*.txt -whitespace
+# Blank patch context lines must retain their leading space.
+patches/*.patch -whitespace

@@ -1,0 +1,66 @@
+diff --git a/app/tsreplace.cpp b/app/tsreplace.cpp
+--- a/app/tsreplace.cpp
++++ b/app/tsreplace.cpp
+@@ -28,4 +28,5 @@
+ #include <memory>
++#include <cstdlib>
+ #include <vector>
+ #include <thread>
+ #if defined(_WIN32) || defined(_WIN64)
+@@ -484,8 +485,33 @@ RGY_ERR TSReplaceVideo::initAVReader(const tstring& videofile, RGYQueueBuffer *in
+     }
+     //ファイルのオープン
+     int ret = 0;
+     AVFormatContext *format_ctx = avformat_alloc_context();
+-    if (m_inputQueue) {
++    if (m_inputQueue && vidStreamID == 0) {
++        // Encoder output is a live, video-only stream created by tsreplace
++        // itself. FFmpeg otherwise spends multiple seconds in
++        // avformat_find_stream_info(), which directly delays first output.
++        // The encoder emits PAT/PMT, SPS/PPS and an IDR at startup, so a short
++        // bounded probe is sufficient and does not affect the source TS.
++        format_ctx->max_analyze_duration = 300 * 1000; // microseconds
++        format_ctx->probesize = 512 * 1024;
++        format_ctx->fps_probe_size = 2;
++        AddMessage(RGY_LOG_DEBUG, _T("Low-latency encoder-output probe: 300 ms, 512 KiB.\n"));
++    } else if (m_inputQueue) {
++        // Source pre-analysis needs the MPEG-2 sequence header and first I
++        // frame, but tsreplace does not consume FFmpeg's long FPS estimate.
++        const char *analyzeEnv = std::getenv("TSREPLACE_SOURCE_ANALYZE_SECONDS");
++        char *analyzeEnd = nullptr;
++        const double configuredAnalyzeSeconds = analyzeEnv ? std::strtod(analyzeEnv, &analyzeEnd) : 1.5;
++        const double sourceAnalyzeSeconds =
++            (analyzeEnd != analyzeEnv && configuredAnalyzeSeconds >= 0.5 && configuredAnalyzeSeconds <= 7.0)
++            ? configuredAnalyzeSeconds : 1.5;
++        format_ctx->max_analyze_duration = static_cast<int64_t>(sourceAnalyzeSeconds * AV_TIME_BASE);
++        format_ctx->probesize = 2 * 1024 * 1024;
++        format_ctx->fps_probe_size = 4;
++        AddMessage(RGY_LOG_DEBUG, _T("Low-latency source probe: %.3f s, 2 MiB, 4 FPS frames.\n"),
++            sourceAnalyzeSeconds);
++    }
++    if (m_inputQueue) {
+         int bufferSize = 128 * 1024;
+         m_Demux.format.inputBuffer = (uint8_t *)av_malloc(bufferSize);
+         if (NULL == (format_ctx->pb = avio_alloc_context((unsigned char *)m_Demux.format.inputBuffer, bufferSize, 0, this, &funcReadPacket, nullptr, nullptr))) {
+@@ -548,11 +574,18 @@ RGY_ERR TSReplaceVideo::initAVReader(const tstring& videofile, RGYQueueBuffer *in
+         m_Demux.video.index = *streamIndexFound;
+     }
+     m_Demux.video.stream = m_Demux.format.formatCtx->streams[m_Demux.video.index];
++    const auto videoCodecPar = m_Demux.video.stream->codecpar;
++    const auto pixelFormatDesc = av_pix_fmt_desc_get((AVPixelFormat)videoCodecPar->format);
++    if (videoCodecPar->width <= 0 || videoCodecPar->height <= 0 || pixelFormatDesc == nullptr) {
++        AddMessage(RGY_LOG_ERROR, _T("incomplete video stream parameters: %dx%d, pixel format %d.\n"),
++            videoCodecPar->width, videoCodecPar->height, videoCodecPar->format);
++        return RGY_ERR_INVALID_VIDEO_PARAM;
++    }
+     AddMessage(RGY_LOG_INFO, _T("Opened video stream #%d (ID %d (0x%x)), %s, %dx%d (%s), stream time_base %d/%d.\n"),
+         m_Demux.video.stream->index, m_Demux.video.stream->id, m_Demux.video.stream->id,
+-        char_to_tstring(avcodec_get_name(m_Demux.video.stream->codecpar->codec_id)).c_str(),
+-        m_Demux.video.stream->codecpar->width, m_Demux.video.stream->codecpar->height,
+-        char_to_tstring(av_pix_fmt_desc_get((AVPixelFormat)m_Demux.video.stream->codecpar->format)->name).c_str(),
++        char_to_tstring(avcodec_get_name(videoCodecPar->codec_id)).c_str(),
++        videoCodecPar->width, videoCodecPar->height,
++        char_to_tstring(pixelFormatDesc->name).c_str(),
+         m_Demux.video.stream->time_base.num, m_Demux.video.stream->time_base.den);
+ 
+     //必要ならbitstream filterを初期化

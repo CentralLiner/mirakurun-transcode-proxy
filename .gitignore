@@ -1,0 +1,19 @@
+# Local configuration and profile backups
+.env
+.env.*
+!.env.example
+
+# Dependencies, logs, and captured broadcasts
+node_modules/
+*.log
+logs/
+*.ts
+
+# Local release artifacts and editor files
+dist/
+coverage/
+*.zip
+*.tar.gz
+.DS_Store
+.idea/
+.vscode/

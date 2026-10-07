@@ -1,0 +1,37 @@
+diff --git a/app/rgy_tsdemux.cpp b/app/rgy_tsdemux.cpp
+index 2a00e86..d456acb 100644
+--- a/app/rgy_tsdemux.cpp
++++ b/app/rgy_tsdemux.cpp
+@@ -633,9 +633,14 @@ std::tuple<RGY_ERR, RGYTSDemuxResult> RGYTSDemuxer::parse(const RGYTSPacket *pkt
+             result.psi = std::make_unique<RGYTS_PSI>(program->pmtPsi);
+             result.programNumber = program->pmt_pid.program_number;
+ 
+-            // 対象のserviceであるかを確認する
++            // A PMT may span multiple TS packets. Do not expose a target
++            // service until parsePSI has completed and CRC-validated it.
+             auto pmt_pid = selectServiceID();
+-            if (pmt_pid && pmt_pid->pmt_pid == program->pmt_pid.pmt_pid) {
++            if (pmt_pid
++                && pmt_pid->pmt_pid == program->pmt_pid.pmt_pid
++                && program->pmtPsi.version_number
++                && program->pmtPsi.current_next_indicator
++                && program->pmtPsi.table_id == 2) {
+                 m_targetService = &program->service;
+             }
+             return { RGY_ERR_NONE, std::move(result) };
+diff --git a/app/tsreplace.cpp b/app/tsreplace.cpp
+index e9c3c6b..9ff041b 100644
+--- a/app/tsreplace.cpp
++++ b/app/tsreplace.cpp
+@@ -1774,6 +1774,11 @@ RGY_ERR TSReplace::initDemuxer(std::vector<uniqueRGYTSPacket>& tsPackets) {
+     }
+ 
+     m_vidPIDReplace = service->vid.stream.pid;
++    if (m_vidPIDReplace == 0 || m_vidPIDReplace >= 0x1fff
++        || service->vid.stream.type != RGYTSStreamType::H262_VIDEO) {
++        AddMessage(RGY_LOG_ERROR, _T("Invalid MPEG-2 video PID 0x%04x; refusing to write a corrupt TS.\n"), m_vidPIDReplace);
++        return RGY_ERR_INVALID_FORMAT;
++    }
+     AddMessage(RGY_LOG_INFO, _T("Target service ID %d, replace vid pid: 0x%04x (%d).\n"), service->programNumber, m_vidPIDReplace, m_vidPIDReplace);
+ 
+     if (service->pidPcr == service->vid.stream.pid) {

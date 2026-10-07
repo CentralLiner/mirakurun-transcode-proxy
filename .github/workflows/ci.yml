@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Check syntax, documentation, and metadata
+        run: npm run check
+      - name: Run unit and HTTP integration tests
+        run: npm test
+      - name: Validate deployment configuration
+        run: docker compose --env-file .env.example config --quiet
+
+  container:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build patched encoder and runtime
+        run: docker build --platform linux/amd64 --tag mirakurun-proxy:ci .
+      - name: Check container startup without GPU hardware
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'docker rm -f mirakurun-proxy-ci >/dev/null 2>&1 || true' EXIT
+          docker run --detach --network none --name mirakurun-proxy-ci mirakurun-proxy:ci
+          for attempt in $(seq 1 15); do
+            if docker exec mirakurun-proxy-ci curl --fail --silent http://127.0.0.1:40773/healthz; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec mirakurun-proxy-ci curl --fail --silent http://127.0.0.1:40773/healthz
+          docker exec mirakurun-proxy-ci node -e 'if (Number(process.versions.node.split(".")[0]) !== 24) process.exit(1)'
+          docker exec mirakurun-proxy-ci sh -c 'test -x /usr/local/bin/tsreplace && test -x /usr/bin/qsvencc && test -s /app/LICENSE && test -s /app/third_party/tsreplace-license.txt && test -s /usr/local/share/doc/node/LICENSE'

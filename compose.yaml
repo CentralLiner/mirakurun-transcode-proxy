@@ -1,0 +1,54 @@
+name: mirakurun-tvtest-transcode
+
+services:
+  proxy:
+    image: mirakurun-tvtest-transcode-proxy:local
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        TSREPLACE_REF: 98d6739180c858927a52c0d70ab20a45b4a9e39e
+        QSVENC_VERSION: "8.26"
+        QSVENC_SHA256: 3b8c9ea9801e6563a8efc62acea2ab86404cf01503d134b6cf013a186f4f1b7a
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:40773:40773/tcp"
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-109}"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      MIRAKURUN_URL: "${MIRAKURUN_URL:-http://host.docker.internal:40772}"
+      MAX_TRANSCODES: "${MAX_TRANSCODES:-2}"
+      CHANNEL_STREAM_MODE: "${CHANNEL_STREAM_MODE:-reject}"
+      TRANSCODE_TUNING_PROFILE: "${TRANSCODE_TUNING_PROFILE:-stable}"
+      TRANSCODE_RATE_CONTROL: "${TRANSCODE_RATE_CONTROL-}"
+      TRANSCODE_BITRATE_KBPS: "${TRANSCODE_BITRATE_KBPS-}"
+      TRANSCODE_MAX_BITRATE_KBPS: "${TRANSCODE_MAX_BITRATE_KBPS-}"
+      TRANSCODE_VBV_BUFFER_KBITS: "${TRANSCODE_VBV_BUFFER_KBITS-}"
+      TRANSCODE_QVBR_QUALITY: "${TRANSCODE_QVBR_QUALITY-}"
+      TRANSCODE_GOP_LENGTH: "${TRANSCODE_GOP_LENGTH-}"
+      TRANSCODE_QUALITY: "${TRANSCODE_QUALITY-}"
+      TRANSCODE_DEINTERLACE: "${TRANSCODE_DEINTERLACE-}"
+      TRANSCODE_CROP_BOTTOM: "${TRANSCODE_CROP_BOTTOM:-0}"
+      QSVENC_DECODER: "${QSVENC_DECODER-}"
+      QSVENC_INPUT_ANALYZE_SECONDS: "${QSVENC_INPUT_ANALYZE_SECONDS-}"
+      QSVENC_INPUT_PROBESIZE: "${QSVENC_INPUT_PROBESIZE-}"
+      TSREPLACE_REMOVE_TYPED: "${TSREPLACE_REMOVE_TYPED-}"
+      EXTRA_QSVENC_ARGS_JSON: '${EXTRA_QSVENC_ARGS_JSON:-[]}'
+      PROXY_LOG_LEVEL: "${PROXY_LOG_LEVEL:-info}"
+      QSVENC_LOG_LEVEL: "${QSVENC_LOG_LEVEL:-warn}"
+      TSREPLACE_LOG_LEVEL: "${TSREPLACE_LOG_LEVEL:-warn}"
+      TSREPLACE_SOURCE_ANALYZE_SECONDS: "${TSREPLACE_SOURCE_ANALYZE_SECONDS:-1.5}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    pids_limit: 128
+    stop_grace_period: 10s

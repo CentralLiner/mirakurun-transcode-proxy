@@ -1,0 +1,46 @@
+name: 不具合報告 / Bug report
+description: 導入、視聴、TS出力の問題を報告します。
+body:
+  - type: markdown
+    attributes:
+      value: |
+        個人のIP・ホスト名、認証情報、放送録画を添付しないでください。
+        セキュリティ上の問題は SECURITY.md の報告手順を使ってください。
+  - type: input
+    id: version
+    attributes:
+      label: バージョン / Version
+      description: 使用したReleaseタグまたはコミットID。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 実行環境 / Environment
+      description: CPU/GPU、Linux、Docker/Compose、Mirakurun、TVTestと映像デコーダのバージョン。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順と期待する動作 / Steps and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動作 / Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: 関連設定 / Relevant settings
+      description: チューニングプロファイルと変更した項目。実際のIPやURLを伏せてください。
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: 匿名化したログ・TS検査結果 / Redacted logs
+      description: 起動ログ、選局時のエラー、check-ts.mjsのJSON結果など。TSファイルは不要です。
+      render: text

@@ -1,0 +1,17 @@
+{
+  "name": "mirakurun-tvtest-transcode-proxy",
+  "version": "1.5.4",
+  "private": true,
+  "type": "module",
+  "description": "Low-latency Mirakurun-compatible transcoding proxy for TVTest",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node scripts/check.mjs",
+    "check:ts": "node scripts/check-ts.mjs",
+    "test": "node --test test/*.test.js"
+  }
+}
